@@ -1,0 +1,14 @@
+
+{
+  "name": "asl-business",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/web",
+    "apps/api",
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "node --test"
+  }
+}
