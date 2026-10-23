@@ -25,6 +25,31 @@
 
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
+## API configuration
+
+The API validates configuration before listening. Supply `DATABASE_URL` as a
+valid PostgreSQL connection URL. `PORT` is optional and defaults to `3001`; if
+set, it must be an integer from `1` through `65535`. `NODE_ENV` may be
+`development`, `test`, or `production` and defaults to `development`.
+
+For local development, the API allows the documented frontend origin
+`http://localhost:3000`. In production, set `CORS_ORIGINS` to a comma-separated
+allowlist of exact HTTPS origins, for example:
+
+```text
+CORS_ORIGINS=https://app.example.com,https://admin.example.com
+```
+
+Origins must not contain paths, credentials, or wildcards. The API loads an
+optional `apps/api/.env` file when present; environment variables already set
+by the process take precedence. Never commit `.env` files or include their
+values in logs or support reports.
+
+Request validation is applied globally: DTOs must declare accepted fields,
+unknown fields are rejected, and values are transformed to declared types.
+Error responses retain HTTP status codes and use generic messages. Unexpected
+server errors are logged without exception details, request data, or secrets.
+
 ## Project setup
 
 ```bash

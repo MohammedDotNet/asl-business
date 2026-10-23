@@ -2,7 +2,7 @@
 
 ## Last Updated
 
-2026-10-21
+2026-10-23
 
 ## 1. Project Status
 
@@ -179,6 +179,14 @@ scaffolding, and the successful initial push.
     `http://localhost:3000`.
 -   The API started successfully after its listening port was changed to
     `3001`; `http://localhost:3001` returned the starter response.
+-   T02 added startup validation for `DATABASE_URL`, `PORT`, `NODE_ENV`, and
+    production CORS origins; the API keeps port `3001` as its default.
+-   API CORS allows `http://localhost:3000` in non-production environments and
+    requires an explicit HTTPS origin allowlist in production.
+-   A global validation pipe rejects unknown request fields, and safe error
+    responses preserve HTTP status codes without returning exception details.
+-   T02 unit and e2e tests, API lint, production build, and TypeScript checks
+    passed; the root `Hello World!` endpoint remains unchanged.
 -   The initial workspace/scaffolding checkpoint was committed as
     `6d35eb7` (`Initialize ASL Business web and API workspaces`).
 -   The API port change was committed as `b0a7c61`
