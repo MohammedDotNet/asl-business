@@ -182,6 +182,102 @@ The repository root also contains `AGENTS.md` and `README.md`.
 
 Keep application boundaries clear and add shared packages only when there is a real need.
 
+## ADR-011: Permission Evaluation Foundation
+
+**Status:** Approved
+
+**Decision:**
+
+Use stable `resource.action` permission keys from a centralized catalog. Keep
+Phase 1 capabilities separate from proposed future-module permissions. Require
+an explicit permission policy for every non-public route through a global
+NestJS guard; explicitly public routes opt out with `@Public()`.
+
+The guard accepts identity only from a validated authentication principal on
+`request.user`, checks that the database user is active, and evaluates the
+union of permission codes granted through all assigned roles. Every protected
+request reads current role-permission relationships from PostgreSQL; no
+authorization cache is used. All permissions declared on a route are required.
+
+Role templates use stable codes separate from display names. The obsolete
+`OWNER` role template is removed; `SYSTEM_ADMIN` is the protected template.
+System administration does not imply financial approval. No initial
+administrator or permission assignments are created until the proposed T04
+grant set is reviewed and the seed is explicitly approved.
+
+**Rationale:**
+
+The schema already models users, roles, permissions, and their unique
+many-to-many assignments. Authentication and business endpoints do not yet
+exist, so a reusable fail-closed policy mechanism can be prepared without
+inventing an identity system or claiming that unsupported operations are
+protected.
+
+**Consequences:**
+
+- The existing root endpoint must remain explicitly public.
+- Missing route policy is denied; missing authenticated identity returns 401;
+  insufficient permission returns 403.
+- Authentication must populate a verified `request.user.userId` before any
+  private endpoint can operate.
+- Role templates currently have empty permission mappings. T04 owns seeding;
+  this decision does not authorize a seed or administrator creation.
+- The protected marker for the system-administrator template is descriptive
+  metadata only; enforcement must be added with authorized role-management
+  operations.
+- `Role.code` is nullable and unique to preserve existing rows during rollout;
+  the migration also adds indexes for relationship lookups and must be
+  reviewed before application.
+- Branch, warehouse, ownership, financial approval, separation-of-duties,
+  and custom-role rules remain future requirements.
+
+## ADR-012: Initial System Administrator Bootstrap
+
+**Status:** Proposed pending owner review
+
+**Decision:**
+
+The T04 seed proposal creates the `SYSTEM_ADMIN` role and grants it exactly
+the existing Phase 1 permission catalog entries. It does not seed proposed
+future-module permissions or grant permissions to other role templates. The
+initial administrator account is created only from process-provided
+`BOOTSTRAP_ADMIN_USERNAME` and `BOOTSTRAP_ADMIN_PASSWORD` values; passwords
+are stored as salted scrypt hashes. Existing accounts and password hashes are
+never overwritten, unrelated existing users are not promoted, and the seed
+refuses a second initial administrator under a different username.
+
+The seed transaction is serializable and upserts permission codes, the
+system-administrator role code, and role-permission links. It verifies that
+the stored role grants exactly match the template. An existing bootstrap user
+is preserved only if it has exactly the `SYSTEM_ADMIN` role. Serialization
+conflicts and unique-key collisions receive a bounded number of retries.
+Bootstrap variables are removed from the seed process environment after the
+attempt.
+
+**Rationale:**
+
+T04 requires a repeatable initial administrator setup but the application does
+not yet have authentication, role-management endpoints, or a secure public
+bootstrap flow. A one-time operator-run seed avoids creating a publicly
+accessible privilege-granting endpoint and avoids committed credentials.
+
+**Consequences:**
+
+- The proposed Phase 1 grant set is reviewable and does not include future
+  sales, accounting, inventory, treasury, customer, or supplier permissions.
+- The seed depends on the `Role.code` migration and must not run before the
+  owner reviews all pending migration effects, particularly legacy migrations
+  that remove the former company table and user column.
+- The seed command is configured but has not been run; neither migrations nor
+  database rows have been changed for T04.
+- The configured local database was inspected read-only: no role rows exist
+  and all three migrations are applied, so no `OWNER` row migration is needed
+  for that database. Seed execution remains pending review of the grant set
+  and provision of one-time bootstrap credentials.
+- The bootstrap password remains the account password until an approved
+  authentication/password-change flow exists; it must be retained securely
+  outside the application environment.
+
 ## Future Decision Records
 
 New architectural decisions should record:

@@ -20,6 +20,7 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule);
   configureApi(app, config);
+  app.enableShutdownHooks();
   await app.listen(config.port);
 }
 

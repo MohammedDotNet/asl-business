@@ -11,8 +11,10 @@ and login UI prototype.
 
 **Overall status:** The Next.js frontend and NestJS API scaffolding are
 present. A responsive, Arabic RTL login UI prototype is implemented in
-the frontend. The API and business workflows remain scaffolding; no
-authentication service has been implemented.
+the frontend. The API and business workflows remain in progress; no
+authentication service has been implemented. Prisma integration is
+implemented. A read-only Prisma migration-status check has successfully
+connected, but the API's live query path has not been separately reverified.
 
 **Important boundary:** The login screen is presentation only. It does
 not authenticate users, recover passwords, create sessions, or send
@@ -187,6 +189,43 @@ scaffolding, and the successful initial push.
     responses preserve HTTP status codes without returning exception details.
 -   T02 unit and e2e tests, API lint, production build, and TypeScript checks
     passed; the root `Hello World!` endpoint remains unchanged.
+-   T03 added a Prisma 7.10.1 PostgreSQL-backed `PrismaService` and an
+    injectable `PrismaModule`; database initialization and shutdown use Nest
+    lifecycle hooks. Startup verifies reachability with a read-only `SELECT 1`,
+    and failures expose only a sanitized driver code when available.
+-   The generated Prisma client is created in the ignored
+    `apps/api/generated/prisma` directory; the five-model schema and migration
+    files remain unchanged.
+-   T03 unit/e2e tests, API lint, production build, and TypeScript checks
+    passed. The initial read-only database probe was refused; a later
+    read-only Prisma migration-status check connected successfully.
+-   T05 adds a typed Phase 1 permission catalog, proposed future permission
+    entries, stable role template codes, and a global fail-closed
+    authorization guard. No authentication or permission-protected business
+    endpoint exists yet.
+-   T05 adds a Prisma migration for optional unique role codes and relationship
+    lookup indexes. The read-only T04 migration-status check found all three
+    migrations and reported the configured database schema up to date; no
+    migration was applied as part of T04.
+-   T04 implementation adds an idempotent Prisma seed command and secure
+    bootstrap-account handling using salted scrypt hashes. Its proposed
+    `SYSTEM_ADMIN` mapping grants only the 16 Phase 1 catalog permissions;
+    future-module permissions and other role templates remain ungranted.
+-   The obsolete `OWNER` role template has been removed in favor of
+    `SYSTEM_ADMIN`. A read-only inspection of the configured local
+    `asl_business` database found no role rows; migration status reports all
+    three migrations applied. No role data migration is needed for this
+    database, and no database writes were performed.
+-   T04 seed hardening requires an existing bootstrap username to have exactly
+    the `SYSTEM_ADMIN` role, verifies the exact grant set, and retries bounded
+    serialization/unique-key conflicts. The password hash format is tested
+    against the complete scrypt structure.
+-   Current validation passed: 46 API unit tests, 6 API end-to-end tests,
+    type-aware API lint, API production build, API TypeScript check, and
+    Prisma schema validation. The seed was not run because bootstrap
+    credential variables are absent. Review of the proposed permission grants
+    and safe provision of one-time credentials are still required before
+    execution; mocked unit tests do not prove database rollback behavior.
 -   The initial workspace/scaffolding checkpoint was committed as
     `6d35eb7` (`Initialize ASL Business web and API workspaces`).
 -   The API port change was committed as `b0a7c61`
@@ -253,20 +292,22 @@ avoid unreviewed major-version downgrades or upgrades.
 
 ## 9. Current Task
 
-**Task:** Implement the Stitch login design as a frontend-only UI
-prototype.
+**Task:** T04 — Permission Catalog and Initial Administrator Setup.
 
-**Outcome recorded here:** The Arabic RTL login UI is implemented and
-the frontend lint and production build pass. Authentication, password
-recovery, session tracking, backend integration, and database
-functionality are not implemented.
+**Outcome recorded here:** T04 seed and bootstrap-account code is implemented
+using the existing T05 catalog. `SYSTEM_ADMIN` is retained as the sole
+protected role template; `OWNER` is removed. Read-only checks against the local
+`asl_business` database found no role rows and all three migrations applied.
+The seed was not run because the bootstrap credential variables are absent.
+The grant set still requires owner review before seed execution.
 
 ## 10. Next Action
 
-Review the login UI in the browser at mobile, tablet, and desktop
-widths. The owner should review this UI before approving another task.
-Authentication requirements and architecture remain open and must be
-specified and approved before implementing an authentication service.
+The owner should review the proposed T04 administrator grant set and provide
+temporary bootstrap environment credentials before approving seed execution.
+Recheck migration status immediately before execution and apply only any
+reviewed pending migrations with a recovery plan. Do not start T06 until T04
+has been reviewed and explicitly approved.
 
 Do not implement authentication, create the application database, begin
 business workflows, or deploy the application without the relevant

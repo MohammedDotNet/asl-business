@@ -14,9 +14,12 @@ const DEVELOPMENT_ORIGIN = 'http://localhost:3000';
 export function loadApiEnvironment(
   env: NodeJS.ProcessEnv = process.env,
 ): ApiEnvironmentConfig {
-  const envFile = resolve(__dirname, '..', '..', '.env');
+  const envFile = [
+    resolve(__dirname, '..', '..', '.env'),
+    resolve(__dirname, '..', '..', '..', '.env'),
+  ].find(existsSync);
 
-  if (existsSync(envFile)) {
+  if (envFile) {
     try {
       process.loadEnvFile(envFile);
     } catch {

@@ -50,6 +50,126 @@ unknown fields are rejected, and values are transformed to declared types.
 Error responses retain HTTP status codes and use generic messages. Unexpected
 server errors are logged without exception details, request data, or secrets.
 
+## Prisma database access
+
+The API uses Prisma 7.10.1 with the PostgreSQL driver adapter. After installing
+workspace dependencies, generate the client from the existing schema:
+
+```bash
+npm exec --workspace @asl-business/api -- prisma generate --config prisma7.config.ts
+```
+
+The generated client is written to the ignored `apps/api/generated/prisma`
+directory. Generation does not connect to or change the database. Regenerate
+the client after an approved schema change.
+
+Import `PrismaModule` into a NestJS module that needs database access, then
+inject `PrismaService` into its provider. The service extends the generated
+Prisma client and connects during Nest module initialization. Nest application
+shutdown hooks disconnect the client gracefully. Initialization verifies
+database reachability with a read-only `SELECT 1`. Connection failures are
+logged with a generic diagnostic and a sanitized driver error code when
+available; the connection string and underlying driver error are not logged.
+
+The API startup validates and loads `DATABASE_URL` before NestJS creates the
+Prisma provider. The Prisma CLI reads the same API `.env` through
+`prisma7.config.ts`. Never print or include the connection URL in logs,
+diagnostics, or support reports.
+
+## Authorization foundation
+
+The permission catalog and role templates are defined in
+`src/authorization/permission-catalog.ts` and
+`src/authorization/role-templates.ts`. Permission keys use the stable
+`resource.action` convention. Phase 1 keys are distinct from proposed
+permissions for business modules that do not yet exist; only Phase 1 keys can
+be attached to current route policies. The catalog is the API-side source of
+identifiers for guards and future seed/navigation consumers. Frontend
+visibility is only a presentation decision and never authorizes an API
+operation. Catalog entries do not create endpoints or automatically grant
+permissions.
+
+To add a permission, choose a stable unique key, add its resource, action,
+label, description, and scope to the catalog, and add focused integrity tests.
+Keep it proposed until the corresponding server operation exists. Then add an
+explicit route policy and include the permission in reviewed seed mappings;
+never infer create, post, export, or other sensitive capabilities from a
+different permission.
+
+`AuthorizationGuard` is registered globally. Routes must either declare
+`@RequirePermissions(...)` or explicitly use `@Public()`. Routes without a
+policy are denied by default. When several permissions are declared, the user
+must have all of them. The guard reads only the authenticated principal's
+`request.user.userId`, verifies that the user is active, and calculates the
+union of permissions across assigned roles from Prisma on every request.
+There is no permission cache, so database changes are reflected on the next
+request. Request body and query values are never treated as identity or
+permission evidence.
+
+Authentication has not been implemented and no current route uses the
+permission decorator. A future authentication module must attach a validated
+principal to `request.user` before protected routes can succeed. The existing
+root endpoint is explicitly public. `SYSTEM_ADMIN` is the only protected role
+template; non-administrator role templates have no grants. The protected
+marker is catalog metadata only until role-management operations exist.
+Composite primary keys on `UserRole` and `RolePermission` prevent duplicate
+assignments. The schema migration adds nullable unique role codes and indexes
+for reverse relationship lookups; review and apply migrations through the
+approved database workflow, never as part of client generation.
+
+## Initial administrator seed
+
+The idempotent seed is wired to Prisma 7 through `prisma7.config.ts`. It creates
+the `SYSTEM_ADMIN` role, only Phase 1 permission rows, the template's listed
+role-permission links, and one bootstrap user. The current proposed
+`SYSTEM_ADMIN` mapping includes all 16 Phase 1 permissions (dashboard, user
+management, role management, profile, and settings); it does not include
+proposed future-module permissions. Other role templates receive no
+permissions. Review this grant set before running the seed.
+
+The seed requires `BOOTSTRAP_ADMIN_USERNAME` (up to 100 characters, without
+leading/trailing whitespace) and `BOOTSTRAP_ADMIN_PASSWORD` (16–1024
+characters). It hashes the password with Node.js scrypt and a random salt.
+Credentials are never printed and the seed removes both bootstrap variables
+from its process environment after the attempt. The seed creates an
+administrator only if no user already has the `SYSTEM_ADMIN` role. A rerun
+with the same username and only the `SYSTEM_ADMIN` assignment preserves the
+account and password hash. It refuses to promote an unrelated existing
+username, preserve an administrator with additional roles, create a second
+administrator, or continue if the role's existing grants differ from the
+template. The role, permissions, assignments, and account are handled in a
+serializable transaction. Serialization conflicts and concurrent unique-key
+collisions receive at most two retries; constraints remain the final duplicate
+protection.
+
+Before seeding, review the migration status and every pending migration. In
+particular, older migrations in this repository remove the legacy `companies`
+table and `company_id` column; do not deploy pending migrations to a database
+with valuable data without reviewing their effects and preparing a verified
+backup/recovery plan. The seed requires the schema migration adding `Role.code`
+to have been applied. Do not treat seed execution as a migration step.
+
+After the migration and grant-set review is approved, the API can be built and
+seeded using process environment variables. In PowerShell, enter the password
+at the masked prompt rather than placing it in command history:
+
+```powershell
+$env:BOOTSTRAP_ADMIN_USERNAME = Read-Host "Bootstrap administrator username"
+$secureBootstrapPassword = Read-Host "Bootstrap administrator password" -AsSecureString
+$env:BOOTSTRAP_ADMIN_PASSWORD = [System.Net.NetworkCredential]::new("", $secureBootstrapPassword).Password
+npm exec --workspace @asl-business/api -- prisma db seed --config prisma7.config.ts
+Remove-Item Env:BOOTSTRAP_ADMIN_USERNAME
+Remove-Item Env:BOOTSTRAP_ADMIN_PASSWORD
+Remove-Variable secureBootstrapPassword
+```
+
+Run this only in a trusted administrative environment after explicit approval.
+Remove the temporary variables and secret-store entry immediately afterward;
+keep the account password in an approved password manager. The current
+application does not yet provide login or password-change functionality, so
+the password must be protected until those flows are implemented. Re-running
+the seed does not rotate or reset it.
+
 ## Project setup
 
 ```bash

@@ -221,6 +221,15 @@ T01, T02, T03, and the approved permission design from T05.
 - Passwords are stored only as secure hashes.
 - Existing accounts are not unintentionally modified.
 
+### Implementation status
+
+- The `OWNER` role template has been removed; the existing
+  `SYSTEM_ADMIN` template remains the protected administrator role.
+- Read-only inspection of the configured local database found no role rows
+  and all three migrations applied. No role data migration was required.
+- Seed execution is pending review of the grant set and secure provision of
+  bootstrap credentials. No seed or migration was run during this work.
+
 # T05 — Permission Catalog and Authorization Rules
 
 Type: Backend / Security / Shared Contract

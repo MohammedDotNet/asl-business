@@ -1,11 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { Body, Controller, INestApplication, Post } from '@nestjs/common';
+import { Body, Controller, Get, INestApplication, Post } from '@nestjs/common';
 import { IsString, MinLength } from 'class-validator';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 import { configureApi } from '../src/config/configure-api';
 import type { ApiEnvironmentConfig } from '../src/config/environment';
+import {
+  Public,
+  RequirePermissions,
+} from '../src/authorization/authorization-metadata';
+import { PrismaService } from '../src/database/prisma.service';
 
 class ValidationRequest {
   @IsString()
@@ -16,8 +21,23 @@ class ValidationRequest {
 @Controller('test-validation')
 class TestValidationController {
   @Post()
+  @Public()
   validate(@Body() request: ValidationRequest): ValidationRequest {
     return request;
+  }
+}
+
+@Controller('test-authorization')
+class TestAuthorizationController {
+  @Get('no-policy')
+  noPolicy(): string {
+    return 'unreachable';
+  }
+
+  @Post('protected')
+  @RequirePermissions('users.view')
+  protectedOperation(): string {
+    return 'unreachable';
   }
 }
 
@@ -33,8 +53,15 @@ describe('AppController (e2e)', () => {
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-      controllers: [TestValidationController],
-    }).compile();
+      controllers: [TestValidationController, TestAuthorizationController],
+    })
+      .overrideProvider(PrismaService)
+      .useValue({
+        $connect: jest.fn(),
+        $disconnect: jest.fn(),
+        user: { findFirst: jest.fn() },
+      })
+      .compile();
 
     app = moduleFixture.createNestApplication();
     configureApi(app, testConfig);
@@ -81,6 +108,22 @@ describe('AppController (e2e)', () => {
           message: 'Bad Request',
         });
       });
+  });
+
+  it('denies routes without an explicit authorization policy', () => {
+    return request(app.getHttpServer())
+      .get('/test-authorization/no-policy')
+      .expect(403);
+  });
+
+  it('does not accept a client-supplied user or permission as authentication', () => {
+    return request(app.getHttpServer())
+      .post('/test-authorization/protected')
+      .send({
+        user: { userId: '29c7945d-5d8a-4711-bb8c-318ee5fb657e' },
+        permissions: ['users.view'],
+      })
+      .expect(401);
   });
 
   afterEach(async () => {
